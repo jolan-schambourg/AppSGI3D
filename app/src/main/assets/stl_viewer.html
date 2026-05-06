@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/loaders/STLLoader.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: black;
+        }
+
+        #msg {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 16px;
+            z-index: 100;
+            background: rgba(0,0,0,0.5);
+            padding: 8px;
+            border-radius: 8px;
+        }
+
+        canvas {
+           touch-action: none;
+         }
+
+    </style>
+
+</head>
+
+<body>
+
+<div id="msg">Prêt</div>
+
+<script>
+
+    let scene = new THREE.Scene();
+
+    let camera =
+        new THREE.PerspectiveCamera(
+            60,
+            window.innerWidth /
+            window.innerHeight,
+            0.1,
+            100000
+        );
+
+    let renderer =
+        new THREE.WebGLRenderer({
+            antialias: true
+        });
+
+    renderer.setPixelRatio(
+        window.devicePixelRatio
+    );
+
+    renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+    );
+
+    document.body.appendChild(
+        renderer.domElement
+    );
+
+    // Controls améliorés
+
+    let controls =
+        new THREE.OrbitControls(
+            camera,
+            renderer.domElement
+        );
+
+    controls.enableZoom = true;
+    controls.zoomSpeed = 1.2;
+
+    controls.enablePan = true;
+    controls.panSpeed = 1.0;
+
+    controls.enableRotate = true;
+    controls.rotateSpeed = 0.8;
+
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    controls.minDistance = 5;
+    controls.maxDistance = 5000;
+
+    // Lumières
+
+    let light1 =
+        new THREE.DirectionalLight(
+            0xffffff,
+            1
+        );
+
+    light1.position.set(1,1,1);
+    scene.add(light1);
+
+    let light2 =
+        new THREE.DirectionalLight(
+            0xffffff,
+            1
+        );
+
+    light2.position.set(-1,-1,-1);
+    scene.add(light2);
+
+    let ambient =
+        new THREE.AmbientLight(
+            0x404040
+        );
+
+    scene.add(ambient);
+
+    // Grille
+
+    let grid =
+        new THREE.GridHelper(
+            400,
+            40
+        );
+
+    scene.add(grid);
+
+    // Axes
+
+    let axes =
+        new THREE.AxesHelper(
+            100
+        );
+
+    scene.add(axes);
+
+    // Animation
+
+    function animate() {
+
+        requestAnimationFrame(
+            animate
+        );
+
+        controls.update();
+
+        renderer.render(
+            scene,
+            camera
+        );
+
+    }
+
+    animate();
+
+    // Charger STL
+
+    function loadSTL(path) {
+
+        document.getElementById("msg").innerText =
+            "Chargement STL...";
+
+        let loader =
+            new THREE.STLLoader();
+
+        loader.load(
+
+            path,
+
+            function (geometry) {
+
+                geometry.computeBoundingBox();
+                geometry.computeBoundingSphere();
+
+                let size =
+                    geometry.boundingBox.getSize(
+                        new THREE.Vector3()
+                    );
+
+                let dimX =
+                    size.x.toFixed(1);
+
+                let dimY =
+                    size.y.toFixed(1);
+
+                let dimZ =
+                    size.z.toFixed(1);
+
+                let material =
+                    new THREE.MeshStandardMaterial({
+                        color: 0x2196F3
+                    });
+
+                let mesh =
+                    new THREE.Mesh(
+                        geometry,
+                        material
+                    );
+
+                let center =
+                    geometry.boundingBox.getCenter(
+                        new THREE.Vector3()
+                    );
+
+                mesh.position.sub(
+                    center
+                );
+
+                mesh.rotation.x =
+                    - Math.PI / 2;
+
+                scene.add(mesh);
+
+                let radius =
+                    geometry.boundingSphere.radius;
+
+                let distance =
+                    radius * 3;
+
+                camera.position.set(
+                    distance,
+                    distance,
+                    distance
+                );
+
+                camera.lookAt(
+                    0,
+                    0,
+                    0
+                );
+
+                controls.target.set(
+                    0,
+                    0,
+                    0
+                );
+
+                controls.update();
+
+                document.getElementById("msg").innerText =
+                    "Modèle chargé\n" +
+                    "X: " + dimX + " mm\n" +
+                    "Y: " + dimY + " mm\n" +
+                    "Z: " + dimZ + " mm";
+
+            },
+
+            undefined,
+
+            function () {
+
+                document.getElementById("msg").innerText =
+                    "Erreur STL";
+
+            }
+
+        );
+
+    }
+
+</script>
+
+</body>
+
+</html>
