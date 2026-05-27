@@ -20,6 +20,9 @@ import com.sgi3d_app.ui.utils.cancelPrintNotification
 import com.sgi3d_app.ui.utils.showFinishedNotification
 import com.sgi3d_app.ui.utils.showPrintNotification
 
+import com.sgi3d_app.data.remote.FluiddRetrofitInstance
+import com.sgi3d_app.data.remote.FluiddResponse
+
 class PrinterViewModel : ViewModel() {
 
     // ===============================
@@ -68,6 +71,37 @@ class PrinterViewModel : ViewModel() {
 
 
     private var lastStatusNotified: String = ""
+
+    var printers by mutableStateOf<List<Printer>>(emptyList())
+        private set
+
+    fun fetchPrinters(token: String) {
+        ApiClient.getPrinters(token) { array ->
+            if (array != null) {
+                val list = mutableListOf<Printer>()
+
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+
+                    list.add(
+                        Printer(
+                            id = obj.getInt("id"),
+                            nom = obj.getString("nom"),
+                            modele = obj.optString("modele"),
+                            statut = obj.getString("statut"),
+                            ip = obj.optString("ip"),
+                            api_key = obj.optString("api_key"),
+                            localisation = obj.optString("localisation"),
+                            materiau = obj.optString("materiau"),
+                            description = obj.optString("description")
+                        )
+                    )
+                }
+
+                printers = list
+            }
+        }
+    }
 
     fun startRealtimeMonitoring(apiKey: String, printerName: String, context: Context) {
         viewModelScope.launch {
@@ -193,32 +227,37 @@ class PrinterViewModel : ViewModel() {
     // TEMP
     // ===============================
 
-    fun fetchPrinterData(apiKey: String) {
-
+    fun fetchPrinterDataDynamic(printer: Printer) {
         viewModelScope.launch {
 
             try {
 
-                val response =
-                    OctoRetrofitInstance.api.getPrinterStatus(apiKey)
+                when (printer.type) {
 
-                nozzleTemp =
-                    "${response.temperature.tool0.actual}°C"
+                    "octoprint" -> {
+                        val response = OctoRetrofitInstance.api
+                            .getPrinterStatus(printer.api_key!!)
 
-                bedTemp =
-                    "${response.temperature.bed.actual}°C"
+                        nozzleTemp = "${response.temperature.tool0.actual}°C"
+                        bedTemp = "${response.temperature.bed.actual}°C"
+                        status = response.state.text
+                    }
 
-                status =
-                    response.state.text
+                    "fluidd" -> {
+                        val response = FluiddRetrofitInstance
+                            .getApi(printer.ip)
+                            .getPrinterInfo()
+
+                        nozzleTemp = "${response.extruder.temperature}°C"
+                        bedTemp = "${response.heater_bed.temperature}°C"
+                        status = response.state
+                    }
+                }
 
             } catch (e: Exception) {
-
                 status = "Erreur connexion"
-
             }
-
         }
-
     }
 
     // ===============================

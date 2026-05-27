@@ -16,10 +16,13 @@ import androidx.compose.ui.unit.dp
 
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
+import com.sgi3d_app.data.model.Printer
+
 
 
 @Composable
 fun PrinterCard(
+    printer: Printer,
     printerName: String,
     status: String,
     temperature: String,

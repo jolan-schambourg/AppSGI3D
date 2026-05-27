@@ -72,6 +72,8 @@ interface RequestApiService {
     @POST("create_demande.php")
     suspend fun createDemande(
 
+        @Part("token") token: RequestBody,
+
         @Part file: MultipartBody.Part,
 
         @Part("etudiant_nom") nom: RequestBody,

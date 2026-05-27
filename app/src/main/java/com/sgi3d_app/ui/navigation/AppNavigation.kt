@@ -114,6 +114,9 @@ fun AppNavigation(token: String) {
                                             ?.trim()
                                             ?: "user"
 
+                                    val sharedPref = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
+                                    sharedPref.edit().putString("token", token).apply()
+
                                     navController.navigate(
                                         "dashboard/$role/$token"
                                     ) {

@@ -280,39 +280,48 @@ class RequestViewModel : ViewModel() {
                             .toMediaTypeOrNull()
                     )
 
-                val response =
-                    ApiRetrofitInstance
-                        .requestApi
-                        .createDemande(
-                            filePart,
-                            nomBody,
-                            emailBody,
-                            commentaireBody
-                        )
+                val sharedPref = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
+                val userToken = sharedPref.getString("token", null)
 
-                if (
-                    response.isSuccessful &&
-                    response.body()?.success == true
-                ) {
+                if (userToken.isNullOrEmpty()) {
+                    Log.e("REQUEST_DEBUG", "Token manquant")
+                    _successState.value = false
+                    return@launch
+                }
 
-                    Log.d(
-                        "REQUEST_DEBUG",
-                        "Demande créée"
-                    )
 
-                    _successState.value = true
+                Log.d("REQUEST_DEBUG", "Token envoyé: $userToken")
 
-                    fetchDemandes(context, email, role)
+                val tokenBody = userToken.toRequestBody("text/plain".toMediaTypeOrNull())
+
+                val response = ApiRetrofitInstance.requestApi.createDemande(
+                    tokenBody,
+                    filePart,
+                    nomBody,
+                    emailBody,
+                    commentaireBody
+                )
+
+                Log.d("REQUEST_DEBUG", "Code: ${response.code()}")
+
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    Log.d("REQUEST_DEBUG", "Body: $body")
+                    Log.d("REQUEST_DEBUG", "Response: ${response.body()}")
+
+                    if (body?.success == true) {
+                        Log.d("REQUEST_DEBUG","Demande créée")
+                        _successState.value = true
+                        fetchDemandes(context, email, role)
+                    } else {
+                        Log.e("REQUEST_DEBUG","Erreur logique API")
+                        _successState.value = false
+                    }
 
                 } else {
-
-                    Log.e(
-                        "REQUEST_DEBUG",
-                        "Erreur createDemande"
-                    )
-
-                    _successState.value = false
-
+                    Log.e("REQUEST_DEBUG", "Erreur createDemande")
+                    Log.e("REQUEST_DEBUG", "Code: ${response.code()}")
+                    Log.e("REQUEST_DEBUG", "Body: ${response.errorBody()?.string()}")
                 }
 
             } catch (e: Exception) {
