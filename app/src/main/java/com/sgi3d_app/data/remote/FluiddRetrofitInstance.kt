@@ -1,3 +1,4 @@
+package com.sgi3d_app.data.remote
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import com.sgi3d_app.data.remote.FluiddApiService

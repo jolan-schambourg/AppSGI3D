@@ -1,9 +1,9 @@
 package com.sgi3d_app.ui.dashboard
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,19 +20,14 @@ import kotlinx.coroutines.delay
 
 import com.sgi3d_app.ui.components.BottomBar
 import com.sgi3d_app.ui.components.DemandeCardSGI3D
-import com.sgi3d_app.ui.historique.HistoriqueScreen
 
-import com.sgi3d_app.ui.requests.NewRequestScreen
 import com.sgi3d_app.ui.requests.RequestDetailScreen
 import com.sgi3d_app.ui.requests.RequestViewModel
 
 import com.sgi3d_app.ui.printer.PrinterControlScreen
 
-import android.content.Intent
-import androidx.core.content.ContextCompat
-import com.sgi3d_app.service.PrintForegroundService
-
 import com.sgi3d_app.data.model.Printer
+import com.sgi3d_app.ui.historique.HistoriqueScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +63,7 @@ fun DashboardScreen(
     val isAdmin = role == "admin"
     val isOperateur = role == "operateur"
     val isEtudiant = role == "etudiant"
+
 
     // ===============================
     // 🔄 INIT
@@ -126,9 +122,9 @@ fun DashboardScreen(
                         PrinterDetailsScreen(
                             name = selectedPrinter!!.nom,
                             volume = "220x220x250 mm",
-                            materials = selectedPrinter!!.materiau,
-                            location = selectedPrinter!!.localisation,
-                            description = selectedPrinter!!.description,
+                            materials = selectedPrinter!!.materiau ?: "",
+                            location = selectedPrinter!!.localisation ?: "",
+                            description = selectedPrinter!!.description?: "",
                             onBack = {
                                 showDetails = false
                                 selectedPrinter = null
@@ -138,25 +134,31 @@ fun DashboardScreen(
                     } else {
 
                         LazyColumn {
-
                             items(printerViewModel.printers) { printer ->
+                                Log.d("PRINTER_TYPE", "Printer: ${printer.nom} | Type: ${printer.type}")
+                                val state = printerViewModel.printerStates[printer.id] ?: PrinterViewModel.PrinterState()
+                                // 🔥 IMPORTANT : lancer récupération dynamique
+                                LaunchedEffect(printer.id) {
+                                    while (true) {
+                                        printerViewModel.fetchPrinterDataDynamic(printer)
+
+                                        printerViewModel.fetchJobProgress(printer)
+
+                                        kotlinx.coroutines.delay(5000)
+                                    }
+                                }
 
                                 PrinterCard(
                                     printerName = printer.nom,
-                                    status = printer.statut,
-                                    temperature = "Chargement...",
-                                    timeRemaining = "-",
-                                    progress = 0f,
-                                    printerIp = printer.ip,
-                                    apiKey = printer.api_key,
+                                    status = state.status,
+                                    temperature = "Buse: ${state.nozzleTemp} | Lit: ${state.bedTemp}",
+                                    timeRemaining = state.timeRemaining,
+                                    progress = state.progress,
+                                    printerIp = printer.ip ?: "",
+                                    apiKey = printer.api_key ?: "",
 
-                                    onPause = {
-                                        printerViewModel.pausePrint(printer.api_key)
-                                    },
-
-                                    onCancel = {
-                                        printerViewModel.cancelPrint(printer.api_key)
-                                    },
+                                    onPause = { printerViewModel.pausePrint(printer) },
+                                    onCancel = { printerViewModel.cancelPrint(printer) },
 
                                     onMoreInfo = {
                                         selectedPrinter = printer
@@ -183,7 +185,7 @@ fun DashboardScreen(
                     selectedPrinter?.let { printer ->
                         PrinterControlScreen(
                             printerIp = printer.ip,
-                            apiKey = printer.api_key,
+                            apiKey = printer.api_key?: "",
                             onBack = { selectedTab = "printers" }
                         )
                     }
@@ -276,6 +278,16 @@ fun DashboardScreen(
                     }
                 }
 
+                // ==================================
+                // 📜 HISTORIQUE
+                // ==================================
+                                "historique" -> {
+                                    HistoriqueScreen(
+                                        email = userEmail,
+                                        isEtudiant = isEtudiant,
+                                        token = token
+                                    )
+                                }
                 // ==================================
                 // ⚙️ SETTINGS
                 // ==================================

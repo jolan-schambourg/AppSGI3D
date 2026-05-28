@@ -11,7 +11,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun HistoriqueScreen(email: String,
-                     isEtudiant: Boolean) {
+                     isEtudiant: Boolean,
+                     token: String) {
 
     val viewModel: HistoriqueViewModel = viewModel()
     var searchText by remember {
@@ -21,7 +22,7 @@ fun HistoriqueScreen(email: String,
 
     LaunchedEffect(Unit) {
 
-        viewModel.fetchHistorique()
+        viewModel.fetchHistorique(token)
 
     }
 
@@ -50,7 +51,7 @@ fun HistoriqueScreen(email: String,
 
         Button(
             onClick = {
-                viewModel.fetchHistorique()
+                viewModel.fetchHistorique(token)
             },
             modifier = Modifier.fillMaxWidth()
         ) {

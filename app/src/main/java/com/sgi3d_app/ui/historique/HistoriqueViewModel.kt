@@ -17,7 +17,7 @@ class HistoriqueViewModel : ViewModel() {
         private set
 
 
-    fun fetchHistorique() {
+    fun fetchHistorique(token: String) {
 
         viewModelScope.launch {
 
@@ -28,7 +28,7 @@ class HistoriqueViewModel : ViewModel() {
                 val response =
                     ApiRetrofitInstance
                         .historiqueApi
-                        .getHistorique()
+                        .getHistorique("Bearer $token")
 
                 if (response.isSuccessful) {
 

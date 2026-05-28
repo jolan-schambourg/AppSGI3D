@@ -10,6 +10,7 @@ import android.content.Context
 import kotlinx.coroutines.launch
 
 import android.util.Log
+import com.sgi3d_app.data.model.Printer
 
 import com.sgi3d_app.data.remote.OctoRetrofitInstance
 import com.sgi3d_app.data.remote.OctoFile
@@ -23,22 +24,31 @@ import com.sgi3d_app.ui.utils.showPrintNotification
 import com.sgi3d_app.data.remote.FluiddRetrofitInstance
 import com.sgi3d_app.data.remote.FluiddResponse
 
+
 class PrinterViewModel : ViewModel() {
 
     // ===============================
     // OctoPrint
     // ===============================
 
-    var nozzleTemp by mutableStateOf("--")
-        private set
+    data class PrinterDynamic(
+        val nozzleTemp: String = "--",
+        val bedTemp: String = "--",
+        val status: String = "Chargement...",
+        val progress: Float = 0f,
+        val timeRemaining: String = "-"
+    )
+    data class PrinterState(
+        val nozzleTemp: String = "--",
+        val bedTemp: String = "--",
+        val status: String = "Chargement...",
+        val progress: Float = 0f,
+        val timeRemaining: String = "-"
+    )
 
-    var bedTemp by mutableStateOf("--")
-        private set
+    var printersDynamic by mutableStateOf<Map<String, PrinterDynamic>>(emptyMap())
 
-    var status by mutableStateOf("Chargement...")
-        private set
-
-    var progress by mutableStateOf(0f)
+    var printerStates by mutableStateOf<Map<Int, PrinterState>>(emptyMap())
         private set
 
     var printerName by mutableStateOf("Chargement...")
@@ -50,8 +60,6 @@ class PrinterViewModel : ViewModel() {
     var timeLeftSeconds by mutableStateOf(0)
         private set
 
-    var timeRemainingText by mutableStateOf("Indisponible")
-        private set
 
     // ===============================
     // BDD
@@ -93,7 +101,8 @@ class PrinterViewModel : ViewModel() {
                             api_key = obj.optString("api_key"),
                             localisation = obj.optString("localisation"),
                             materiau = obj.optString("materiau"),
-                            description = obj.optString("description")
+                            description = obj.optString("description"),
+                            type = obj.optString("type", "octoprint")
                         )
                     )
                 }
@@ -231,31 +240,71 @@ class PrinterViewModel : ViewModel() {
         viewModelScope.launch {
 
             try {
+                var nozzle = "--"
+                var bed = "--"
+                var statusText = "Offline"
 
                 when (printer.type) {
 
                     "octoprint" -> {
-                        val response = OctoRetrofitInstance.api
-                            .getPrinterStatus(printer.api_key!!)
+                        if (!printer.api_key.isNullOrBlank()) {
+                            try {
+                                val response = OctoRetrofitInstance.api
+                                    .getPrinterStatus(printer.api_key!!)
 
-                        nozzleTemp = "${response.temperature.tool0.actual}°C"
-                        bedTemp = "${response.temperature.bed.actual}°C"
-                        status = response.state.text
+                                nozzle = "${response.temperature.tool0.actual}°C"
+                                bed = "${response.temperature.bed.actual}°C"
+                                statusText = response.state.text
+
+                            } catch (e: Exception) {
+                                statusText = "Offline"
+                            }
+                        } else {
+                            statusText = "Clé API manquante"
+                        }
                     }
 
                     "fluidd" -> {
-                        val response = FluiddRetrofitInstance
-                            .getApi(printer.ip)
-                            .getPrinterInfo()
+                        if (!printer.ip.isNullOrBlank()) {
+                            try {
+                                val cleanIp = printer.ip!!.replace("http://", "")
 
-                        nozzleTemp = "${response.extruder.temperature}°C"
-                        bedTemp = "${response.heater_bed.temperature}°C"
-                        status = response.state
+                                val response = FluiddRetrofitInstance
+                                    .getApi(cleanIp)
+                                    .getPrinterInfo()
+
+                                val data = response.result.status
+
+                                nozzle = "${data.extruder.temperature}°C"
+                                bed = "${data.heater_bed.temperature}°C"
+                                statusText = data.print_stats.state
+
+                            } catch (e: Exception) {
+                                statusText = "Offline"
+                            }
+                        } else {
+                            statusText = "IP manquante"
+                        }
                     }
                 }
 
+                val current = printerStates[printer.id] ?: PrinterState()
+
+                printerStates = printerStates.toMutableMap().apply {
+                    put(
+                        printer.id,
+                        current.copy(
+                            nozzleTemp = nozzle,
+                            bedTemp = bed,
+                            status = statusText
+                        )
+                    )
+                }
+
             } catch (e: Exception) {
-                status = "Erreur connexion"
+                printerStates = printerStates.toMutableMap().apply {
+                    put(printer.id, PrinterState(status = "Erreur"))
+                }
             }
         }
     }
@@ -264,45 +313,43 @@ class PrinterViewModel : ViewModel() {
     // PROGRESS
     // ===============================
 
-    fun fetchJobProgress(apiKey: String) {
-
+    fun fetchJobProgress(printer: Printer) {
         viewModelScope.launch {
-
             try {
 
-                val response =
-                    OctoRetrofitInstance
-                        .api
-                        .getJobStatus(apiKey)
+                if (printer.type.lowercase() != "octoprint") {
+                    // 👉 Fluidd = pas de progress OctoPrint → on ignore
+                    return@launch
+                }
 
-                val completion =
-                    response.progress.completion ?: 0.0
-
-// ⚠️ IMPORTANT : OctoPrint donne déjà 0 → 1
-                progress =
-                    completion.toFloat()
-
-                val printTimeLeftApi =
-                    response.progress.printTimeLeft ?: 0
-
-                timeLeftSeconds =
-
-                    if (printTimeLeftApi > 0) {
-
-                        printTimeLeftApi
-
-                    } else {
-
-                        0 // on affichera "Indisponible"
+                if (printer.api_key.isNullOrBlank() || printer.api_key == "NULL") {
+                    val current = printerStates[printer.id] ?: PrinterState()
+                    printerStates = printerStates.toMutableMap().apply {
+                        put(printer.id, current.copy(status = "Clé API manquante"))
                     }
+                    return@launch
+                }
 
-                timeRemainingText =
-                    formatTime(timeLeftSeconds)
+                val response = OctoRetrofitInstance.api
+                    .getJobStatus(printer.api_key!!)
 
-            } catch (_: Exception) {
+                val completion = response.progress.completion ?: 0.0
+                val timeLeft = response.progress.printTimeLeft ?: 0
 
-                progress = 0f
-                timeLeftSeconds = 0
+                val current = printerStates[printer.id] ?: PrinterState()
+
+                printerStates = printerStates.toMutableMap().apply {
+                    put(
+                        printer.id,
+                        current.copy(
+                            progress = completion.toFloat(),
+                            timeRemaining = formatTime(timeLeft)
+                        )
+                    )
+                }
+
+            } catch (e: Exception) {
+                Log.e("PRINT", "Erreur progress ${printer.nom}", e)
             }
         }
     }
@@ -356,80 +403,53 @@ class PrinterViewModel : ViewModel() {
     // ===============================
     // COMMANDES
     // ===============================
-
-    fun pausePrint(apiKey: String) {
-
+    fun pausePrint(printer: Printer) {
         viewModelScope.launch {
-
             try {
-
                 OctoRetrofitInstance.api.sendJobCommand(
-                    apiKey,
-                    mapOf(
-                        "command" to "pause",
-                        "action" to "toggle"
-                    )
+                    printer.api_key!!,
+                    mapOf("command" to "pause", "action" to "toggle")
                 )
-
             } catch (e: Exception) {
-
-                status = "Erreur pause"
-
+                val current = printerStates[printer.id] ?: PrinterState()
+                printerStates = printerStates.toMutableMap().apply {
+                    put(printer.id, current.copy(status = "Erreur pause"))
+                }
             }
-
         }
-
     }
 
-    fun cancelPrint(apiKey: String) {
-
+    fun cancelPrint(printer: Printer) {
         viewModelScope.launch {
-
             try {
-
                 OctoRetrofitInstance.api.sendJobCommand(
-                    apiKey,
-                    mapOf(
-                        "command" to "cancel"
-                    )
+                    printer.api_key!!,
+                    mapOf("command" to "cancel")
                 )
-
             } catch (e: Exception) {
-
-                status = "Erreur stop"
-
+                val current = printerStates[printer.id] ?: PrinterState()
+                printerStates = printerStates.toMutableMap().apply {
+                    put(printer.id, current.copy(status = "Erreur stop"))
+                }
             }
-
         }
-
     }
 
-    fun startPrint(
-        apiKey: String,
-        fileName: String
-    ) {
-
+    fun startPrint(printer: Printer, fileName: String) {
         viewModelScope.launch {
-
             try {
-
                 OctoRetrofitInstance.api.startPrint(
-                    apiKey,
+                    printer.api_key!!,
                     fileName,
-                    mapOf(
-                        "command" to "select",
-                        "print" to true
-                    )
+                    mapOf("command" to "select", "print" to true)
                 )
-
             } catch (e: Exception) {
-
-                status = "Erreur démarrage"
-
+                val current = printerStates[printer.id] ?: PrinterState()
+                printerStates = printerStates.toMutableMap().apply {
+                    put(printer.id, current.copy(status = "Erreur démarrage"))
+                }
             }
-
         }
-
     }
 
     // ===============================
