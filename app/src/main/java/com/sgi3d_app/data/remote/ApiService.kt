@@ -31,16 +31,6 @@ data class LoginResponse(
 )
 
 
-// ===============================
-// 🖨 IMPRIMANTES
-// ===============================
-
-data class PrintersResponse(
-    val success: Boolean,
-    val printers: List<Printer>
-)
-
-
 
 
 // ===============================

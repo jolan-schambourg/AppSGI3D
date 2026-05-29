@@ -22,15 +22,13 @@ import com.sgi3d_app.ui.components.BottomBar
 import com.sgi3d_app.ui.components.DemandeCardSGI3D
 import com.sgi3d_app.ui.historique.HistoriqueScreen
 
-import com.sgi3d_app.ui.requests.NewRequestScreen
 import com.sgi3d_app.ui.requests.RequestDetailScreen
 import com.sgi3d_app.ui.requests.RequestViewModel
 
 import com.sgi3d_app.ui.printer.PrinterControlScreen
 
-import android.content.Intent
-import androidx.core.content.ContextCompat
-import com.sgi3d_app.service.PrintForegroundService
+import com.sgi3d_app.data.model.Printer
+import com.sgi3d_app.data.remote.ApiRetrofitInstance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,8 +70,7 @@ fun DashboardScreen(
         mutableStateOf("EN_ATTENTE")
     }
 
-    val apiKey =
-        "GN2-MsGMr05YG0vUw-98MLiRZKFkXcYZrkvfeztDh-8"
+    var selectedPrinter by remember { mutableStateOf<Printer?>(null) }
 
     val printerIp =
         "192.168.0.32"
@@ -83,16 +80,9 @@ fun DashboardScreen(
 
 
     val context = LocalContext.current
-    var serviceStarted by remember { mutableStateOf(false) }
 
-    // 🚀 LANCER LE SERVICE DE NOTIF
-    fun startPrintService() {
-        val intent = Intent(context, PrintForegroundService::class.java).apply {
-            putExtra("apiKey", apiKey)
-            putExtra("printerName", printerViewModel.printerName)
-        }
-        context.startForegroundService(intent)
-    }
+    //faire le startPrintService()
+
 
     val userNom =
         profileViewModel.profile?.nom ?: ""
@@ -100,12 +90,8 @@ fun DashboardScreen(
     val userEmail =
         profileViewModel.profile?.email ?: ""
 
-    LaunchedEffect(printerViewModel.printerName) {
-        if (!serviceStarted && printerViewModel.printerName != "Chargement...") {
-            startPrintService()
-            serviceStarted = true
-        }
-    }
+    var printers by remember { mutableStateOf<List<Printer>>(emptyList()) }
+
 
     LaunchedEffect(Unit) {
 
@@ -113,14 +99,15 @@ fun DashboardScreen(
             profileViewModel.loadProfile(token)
         }
 
-        printerViewModel.fetchPrinterName(apiKey)
-        printerViewModel.fetchFiles(apiKey)
-        printerViewModel.fetchPrinterDetails(token)
 
+    }
 
+    LaunchedEffect(printers) {
         while (true) {
-            printerViewModel.fetchPrinterData(apiKey)
-            printerViewModel.fetchJobProgress(apiKey)
+            printers.forEach { printer ->
+                printerViewModel.fetchPrinterData(printer.api_key)
+                printerViewModel.fetchJobProgress(printer.api_key)
+            }
             delay(5000)
         }
     }
@@ -137,8 +124,12 @@ fun DashboardScreen(
         }
     }
 
-
-
+    LaunchedEffect(Unit) {
+        val response = ApiRetrofitInstance.api.getPrinters("Bearer $token")
+        if (response.isSuccessful) {
+            printers = response.body()?.printers ?: emptyList()
+        }
+    }
 
 
     val isAdmin = role == "admin"
@@ -201,92 +192,53 @@ fun DashboardScreen(
                     if (showDetails) {
 
                         PrinterDetailsScreen(
-
-                            name =
-                                printerViewModel.printerName,
-
-                            volume =
-                                "220x220x250 mm",
-
-                            materials =
-                                printerViewModel.printerMaterial,
-
-                            location =
-                                printerViewModel.printerLocation,
-
-                            description =
-                                printerViewModel.printerDescription,
-
-                            onBack = {
-
-                                showDetails = false
-
-                            }
-
+                            name = selectedPrinter?.nom ?: "",
+                            volume = "220x220x250 mm",
+                            materials = selectedPrinter?.materiau ?: "-",
+                            location = selectedPrinter?.localisation ?: "-",
+                            description = selectedPrinter?.description ?: "-",
+                            onBack = { showDetails = false }
                         )
 
                     }
 
                     else {
 
-                        PrinterCard(
+                        LazyColumn {
+                            items(printers) { printer ->
 
-                            printerName =
-                                printerViewModel.printerName,
+                                val data = printerViewModel.printersData[printer.api_key]
 
-                            status =
-                                printerViewModel.status,
+                                PrinterCard(
+                                    printerName = printer.nom,
+                                    status = data?.statut ?: "Inconnu",
+                                    temperature = "Buse : ${data?.nozzleTemp ?: "--"} | Plateau : ${data?.bedTemp ?: "--"}",
+                                    timeRemaining = data?.timeRemaining ?: "-",
+                                    progress = data?.progress ?: 0f,
+                                    printerIp = printer.ip ?: "",
+                                    apiKey = printer.api_key,
 
-                            temperature =
-                                "Buse : ${
-                                    printerViewModel.nozzleTemp
-                                } | Plateau : ${
-                                    printerViewModel.bedTemp
-                                }",
+                                    onPause = {
+                                        printerViewModel.pausePrint(printer.api_key)
+                                    },
 
-                            timeRemaining = "-",
+                                    onCancel = {
+                                        printerViewModel.cancelPrint(printer.api_key)
+                                    },
 
-                            progress =
-                                printerViewModel.progress,
+                                    onMoreInfo = {
+                                        selectedPrinter = printer
+                                        showDetails = true
+                                    },
 
-                            printerIp =
-                                printerIp,
+                                    onControlClick = { _, _ ->
+                                        selectedTab = "control"
+                                    },
 
-                            apiKey =
-                                apiKey,
-
-                            onPause = {
-
-                                printerViewModel
-                                    .pausePrint(apiKey)
-
-                            },
-
-                            onCancel = {
-
-                                printerViewModel
-                                    .cancelPrint(apiKey)
-
-                            },
-
-                            onMoreInfo = {
-
-                                printerViewModel
-                                    .fetchPrinterDetails(token)
-
-                                showDetails = true
-
-                            },
-
-                            onControlClick = { _, _ ->
-
-                                selectedTab = "control"
-
-                            },
-
-                            canControl = isAdmin || isOperateur
-
-                        )
+                                    canControl = isAdmin || isOperateur
+                                )
+                            }
+                        }
 
                     }
 
@@ -304,7 +256,7 @@ fun DashboardScreen(
                             printerIp,
 
                         apiKey =
-                            apiKey,
+                            "",
 
                         onBack = {
 

@@ -10,6 +10,7 @@ import android.content.Context
 import kotlinx.coroutines.launch
 
 import android.util.Log
+import com.sgi3d_app.data.model.PrinterUI
 
 import com.sgi3d_app.data.remote.OctoRetrofitInstance
 import com.sgi3d_app.data.remote.OctoFile
@@ -25,6 +26,9 @@ class PrinterViewModel : ViewModel() {
     // ===============================
     // OctoPrint
     // ===============================
+
+    var printersData by mutableStateOf<Map<String, PrinterUI>>(emptyMap())
+        private set
 
     var nozzleTemp by mutableStateOf("--")
         private set
@@ -44,6 +48,7 @@ class PrinterViewModel : ViewModel() {
     var octoFiles by mutableStateOf<List<OctoFile>>(emptyList())
         private set
 
+    var timeRemaining by mutableStateOf("-")
     var timeLeftSeconds by mutableStateOf(0)
         private set
 
@@ -78,6 +83,17 @@ class PrinterViewModel : ViewModel() {
             while (true) {
                 try {
                     val response = OctoRetrofitInstance.api.getJobStatus(apiKey)
+
+                    val seconds = response.progress.printTimeLeft
+                    progress = response.progress.completion?.toFloat() ?: 0f
+
+                    timeRemaining = if (seconds != null) {
+                        val minutes = seconds / 60
+                        val hours = minutes / 60
+                        "${hours}h ${minutes % 60}min"
+                    } else {
+                        "-"
+                    }
 
                     val status = response.state
                     val progress = ((response.progress.completion ?: 0.0) * 100).toInt()
@@ -194,31 +210,28 @@ class PrinterViewModel : ViewModel() {
     // ===============================
 
     fun fetchPrinterData(apiKey: String) {
-
         viewModelScope.launch {
-
             try {
+                val response = OctoRetrofitInstance.api.getPrinterStatus(apiKey)
 
-                val response =
-                    OctoRetrofitInstance.api.getPrinterStatus(apiKey)
+                val existing = printersData[apiKey]
 
-                nozzleTemp =
-                    "${response.temperature.tool0.actual}°C"
+                val newData = PrinterUI(
+                    id = existing?.id ?: 0,
+                    nom = existing?.nom ?: "",
+                    statut = response.state.text,
+                    nozzleTemp = "${response.temperature.tool0.actual}°C",
+                    bedTemp = "${response.temperature.bed.actual}°C",
+                    progress = existing?.progress ?: 0f,
+                    timeRemaining = existing?.timeRemaining ?: "-"
+                )
 
-                bedTemp =
-                    "${response.temperature.bed.actual}°C"
+                printersData = printersData.toMutableMap().apply {
+                    put(apiKey, newData)
+                }
 
-                status =
-                    response.state.text
-
-            } catch (e: Exception) {
-
-                status = "Erreur connexion"
-
-            }
-
+            } catch (_: Exception) {}
         }
-
     }
 
     // ===============================
@@ -226,94 +239,71 @@ class PrinterViewModel : ViewModel() {
     // ===============================
 
     fun fetchJobProgress(apiKey: String) {
-
         viewModelScope.launch {
-
             try {
+                val response = OctoRetrofitInstance.api.getJobStatus(apiKey)
 
-                val response =
-                    OctoRetrofitInstance
-                        .api
-                        .getJobStatus(apiKey)
+                val existing = printersData[apiKey]
 
-                val completion =
-                    response.progress.completion ?: 0.0
+                val completion = response.progress.completion ?: 0.0
+                val timeLeft = response.progress.printTimeLeft ?: 0
 
-// ⚠️ IMPORTANT : OctoPrint donne déjà 0 → 1
-                progress =
-                    completion.toFloat()
+                val updated = PrinterUI(
+                    id = existing?.id ?: 0,
+                    nom = existing?.nom ?: "",
+                    statut = existing?.statut ?: "Inconnu",
+                    nozzleTemp = existing?.nozzleTemp ?: "--",
+                    bedTemp = existing?.bedTemp ?: "--",
+                    progress = completion.toFloat(),
+                    timeRemaining = formatTime(timeLeft)
+                )
 
-                val printTimeLeftApi =
-                    response.progress.printTimeLeft ?: 0
-
-                timeLeftSeconds =
-
-                    if (printTimeLeftApi > 0) {
-
-                        printTimeLeftApi
-
-                    } else {
-
-                        0 // on affichera "Indisponible"
-                    }
-
-                timeRemainingText =
-                    formatTime(timeLeftSeconds)
-
-            } catch (_: Exception) {
-
-                progress = 0f
-                timeLeftSeconds = 0
-            }
-        }
-    }
-
-    // ===============================
-    // INFOS BDD
-    // ===============================
-
-    fun fetchPrinterDetails(token: String) {
-
-        ApiClient.getPrinters(token) { printersArray ->
-
-            if (
-                printersArray != null &&
-                printersArray.length() > 0
-            ) {
-
-                try {
-
-                    val printer =
-                        printersArray.getJSONObject(0)
-
-                    printerModel =
-                        printer.optString("modele")
-
-                    printerLocation =
-                        printer.optString("localisation")
-
-                    printerMaterial =
-                        printer.optString("materiau")
-
-                    printerDescription =
-                        printer.optString("description")
-
-                } catch (e: Exception) {
-
-                    Log.e(
-                        "API",
-                        "Erreur parsing printer",
-                        e
-                    )
-
+                printersData = printersData.toMutableMap().apply {
+                    put(apiKey, updated)
                 }
 
-            }
-
+            } catch (_: Exception) {}
         }
-
     }
 
+    fun fetchPrinterDetails(token: String, printerId: Int) {
+        ApiClient.getPrinters(token) { printersArray ->
+            if (printersArray != null) {
+                try {
+                    for (i in 0 until printersArray.length()) {
+                        val printer = printersArray.getJSONObject(i)
+
+                        if (printer.getInt("id") == printerId) {
+
+                            val updated = printersData[printer.getString("api_key")]
+
+                            printersData = printersData.toMutableMap().apply {
+                                put(
+                                    printer.getString("api_key"),
+                                    updated?.copy(
+                                        nom = printer.optString("nom"),
+                                        statut = printer.optString("statut")
+                                    ) ?: PrinterUI(
+                                        id = printerId,
+                                        nom = printer.optString("nom"),
+                                        statut = printer.optString("statut"),
+                                        nozzleTemp = "--",
+                                        bedTemp = "--",
+                                        progress = 0f,
+                                        timeRemaining = "-"
+                                    )
+                                )
+                            }
+
+                            break
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("API", "Erreur parsing printer", e)
+                }
+            }
+        }
+    }
     // ===============================
     // COMMANDES
     // ===============================

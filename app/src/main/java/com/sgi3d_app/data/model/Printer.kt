@@ -6,6 +6,8 @@ data class Printer(
     val modele: String?,
     val statut: String,
     val ip: String?,
+    val api_key: String,
     val localisation: String?,
-    val materiau: String?
+    val materiau: String?,
+    val description: String?
 )
