@@ -28,7 +28,7 @@ import com.sgi3d_app.ui.requests.RequestViewModel
 import com.sgi3d_app.ui.dashboard.ChangePasswordScreen
 
 @Composable
-fun AppNavigation(token: String) {
+fun AppNavigation() {
 
     val navController = rememberNavController()
 
@@ -248,7 +248,7 @@ fun AppNavigation(token: String) {
 // 📄 NEW REQUEST
 // ===============================
 
-            composable("new_request/{name}/{email}/{role}") { backStackEntry ->
+            composable("new_request/{name}/{email}/{role}/{token}") { backStackEntry ->
 
                 val name =
                     backStackEntry.arguments
@@ -259,6 +259,8 @@ fun AppNavigation(token: String) {
                         ?.getString("email") ?: ""
 
                 val role = backStackEntry.arguments?.getString("role") ?: "etudiant"
+
+                val token = backStackEntry.arguments?.getString("token") ?: ""
 
                 val requestViewModel: RequestViewModel =
                     viewModel()
@@ -288,7 +290,8 @@ fun AppNavigation(token: String) {
                                 email,
                                 comment,
                                 context,
-                                role
+                                role,
+                                token
                             )
 
                         }

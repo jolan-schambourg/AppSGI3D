@@ -16,30 +16,16 @@ class MainActivity : ComponentActivity() {
         // 🔔 Permission notif
         requestNotificationPermission(this)
 
-        val token = getTokenFromPrefs()
+
 
 
         setContent {
             MaterialTheme {
-                AppNavigation(token = token)
+                AppNavigation()
             }
         }
     }
 
-    // 🔐 Récupérer le token sauvegardé
-    private fun getTokenFromPrefs(): String {
 
-        val prefs =
-            getSharedPreferences(
-                "auth",
-                Context.MODE_PRIVATE
-            )
-
-        return prefs.getString(
-            "token",
-            ""
-        ) ?: ""
-
-    }
 
 }

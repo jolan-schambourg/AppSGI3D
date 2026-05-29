@@ -38,12 +38,12 @@ class RequestViewModel : ViewModel() {
     // 📥 Charger demandes
     // ===============================
 
-    fun fetchDemandes(context: Context, userEmail: String, role: String) {
+    fun fetchDemandes(context: Context, userEmail: String, role: String, token: String) {
         viewModelScope.launch {
             isLoading = true
 
             try {
-                val response = ApiRetrofitInstance.requestApi.getDemandes()
+                val response = ApiRetrofitInstance.requestApi.getDemandes("Bearer ${token.trim()}")
 
                 if (response.isSuccessful) {
                     val body = response.body()
@@ -102,7 +102,8 @@ class RequestViewModel : ViewModel() {
         adminEmail: String,
         commentaire: String,
         context: Context,
-        role: String
+        role: String,
+        token: String
     ) {
 
         viewModelScope.launch {
@@ -131,7 +132,7 @@ class RequestViewModel : ViewModel() {
 
 
 
-                    fetchDemandes(context, adminEmail, role)
+                    fetchDemandes(context, adminEmail, role, token)
 
                 } else {
 
@@ -166,7 +167,8 @@ class RequestViewModel : ViewModel() {
         adminEmail: String,
         commentaire: String,
         context: Context,
-        role: String
+        role: String,
+        token: String
     ) {
 
         viewModelScope.launch {
@@ -193,7 +195,7 @@ class RequestViewModel : ViewModel() {
                         "Demande refusée"
                     )
 
-                    fetchDemandes(context, adminEmail, role)
+                    fetchDemandes(context, adminEmail, role, token)
 
                 } else {
 
@@ -228,7 +230,8 @@ class RequestViewModel : ViewModel() {
         email: String,
         commentaire: String,
         context: Context,
-        role: String
+        role: String,
+        token: String
     ) {
 
         viewModelScope.launch {
@@ -262,33 +265,24 @@ class RequestViewModel : ViewModel() {
                         requestFile
                     )
 
-                val nomBody =
-                    nom.toRequestBody(
-                        "text/plain"
-                            .toMediaTypeOrNull()
-                    )
+                val nomBody = nom.toRequestBody("text/plain".toMediaTypeOrNull())
+                val emailBody = email.toRequestBody("text/plain".toMediaTypeOrNull())
+                val commentaireBody = commentaire.toRequestBody("text/plain".toMediaTypeOrNull())
 
-                val emailBody =
-                    email.toRequestBody(
-                        "text/plain"
-                            .toMediaTypeOrNull()
-                    )
 
-                val commentaireBody =
-                    commentaire.toRequestBody(
-                        "text/plain"
-                            .toMediaTypeOrNull()
-                    )
+                Log.d("REQUEST_DEBUG", "Token envoyé brut: '$token'")
 
-                val response =
-                    ApiRetrofitInstance
-                        .requestApi
-                        .createDemande(
-                            filePart,
-                            nomBody,
-                            emailBody,
-                            commentaireBody
-                        )
+                val response = ApiRetrofitInstance.requestApi.createDemande(
+                    "Bearer ${token.trim()}",
+                    filePart,
+                    nomBody,
+                    emailBody,
+                    commentaireBody
+                )
+
+                Log.d("REQUEST_DEBUG", "Code: ${response.code()}")
+                Log.d("REQUEST_DEBUG", "ErrorBody: ${response.errorBody()?.string()}")
+                Log.d("REQUEST_DEBUG", "Body: ${response.body()}")
 
                 if (
                     response.isSuccessful &&
@@ -302,7 +296,7 @@ class RequestViewModel : ViewModel() {
 
                     _successState.value = true
 
-                    fetchDemandes(context, email, role)
+                    fetchDemandes(context, email, role, token)
 
                 } else {
 

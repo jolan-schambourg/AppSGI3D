@@ -6,7 +6,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 object OctoRetrofitInstance {
 
     private const val BASE_URL =
-        "http://192.168.0.19/"
+        "http://192.168.0.32/"
 
     val api: OctoPrintApi by lazy {
 

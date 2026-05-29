@@ -14,9 +14,9 @@ interface RequestApiService {
     // ===============================
 
     @GET("get_demandes.php")
-    suspend fun getDemandes():
-
-            Response<DemandeResponse>
+    suspend fun getDemandes(
+        @Header("Authorization") token: String
+    ): Response<DemandeResponse>
 
 
 
@@ -71,15 +71,12 @@ interface RequestApiService {
     @Multipart
     @POST("create_demande.php")
     suspend fun createDemande(
+        @Header("Authorization") token: String,
 
         @Part file: MultipartBody.Part,
 
         @Part("etudiant_nom") nom: RequestBody,
-
         @Part("etudiant_email") email: RequestBody,
-
         @Part("commentaire") commentaire: RequestBody
-
     ): Response<SimpleResponse>
-
 }

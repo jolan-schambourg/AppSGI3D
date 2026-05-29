@@ -76,7 +76,7 @@ fun DashboardScreen(
         "GN2-MsGMr05YG0vUw-98MLiRZKFkXcYZrkvfeztDh-8"
 
     val printerIp =
-        "192.168.0.19"
+        "192.168.0.32"
 
     // 🔥 ADMIN récupéré depuis backend
 
@@ -128,10 +128,10 @@ fun DashboardScreen(
     LaunchedEffect(userEmail) {
         if (userEmail.isNotBlank()) {
 
-            requestViewModel.fetchDemandes(context, userEmail, role)
+            requestViewModel.fetchDemandes(context, userEmail, role, token)
 
             while (true) {
-                requestViewModel.fetchDemandes(context, userEmail, role)
+                requestViewModel.fetchDemandes(context, userEmail, role, token)
                 delay(5000)
             }
         }
@@ -346,7 +346,8 @@ fun DashboardScreen(
                                     userEmail,
                                     commentaire,
                                     context,
-                                    role
+                                    role,
+                                    token
                                 )
 
                                 selectedRequest = null
@@ -368,7 +369,9 @@ fun DashboardScreen(
 
                                         context,
 
-                                        role
+                                        role,
+
+                                        token
 
                                     )
 
@@ -389,7 +392,7 @@ fun DashboardScreen(
                             if (isAdmin || isOperateur || isEtudiant) {
                                 Button(
                                     onClick = {
-                                        navController.navigate("new_request/$userNom/$userEmail/$role")
+                                        navController.navigate("new_request/$userNom/$userEmail/$role/$token")
                                     },
                                     shape = RoundedCornerShape(50),
                                     modifier = Modifier.fillMaxWidth().height(50.dp)
@@ -533,7 +536,8 @@ fun DashboardScreen(
                                                         userEmail,
                                                         "Acceptée rapide",
                                                         context,
-                                                        role
+                                                        role,
+                                                        token
                                                     )
                                                 }
                                             },
@@ -548,7 +552,8 @@ fun DashboardScreen(
                                                         userEmail,
                                                         "Refus rapide",
                                                         context,
-                                                        role
+                                                        role,
+                                                        token
                                                     )
                                                 }
                                             },
