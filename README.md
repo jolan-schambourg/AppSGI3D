@@ -197,4 +197,3 @@ Projet réalisé dans le cadre du BTS CIEL – Option Informatique et Réseaux (
 ## 📄 Licence
 
 Projet pédagogique réalisé dans le cadre de la formation BTS CIEL.
-es)
